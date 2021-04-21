@@ -1,0 +1,7 @@
+.vscode
+setup-airflow-pdi/logs
+setup-airflow-pdi/plugins
+__pycache__
+.meta
+.env
+# jdbc.properties
