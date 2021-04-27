@@ -16,11 +16,11 @@ args = {
 
 
 with DAG(
-    dag_id="hello-world",
+    dag_id="load-testing",
     default_args=args,
     schedule_interval=None,
     catchup=False,
-    description=f"Hello World!!!",
+    description=f"Run multiple tasks in parallel for load testing",
 ) as dag:
 
     start = DummyOperator(
@@ -28,11 +28,21 @@ with DAG(
     )
 
     t1 = BashOperator(
-        task_id='Trigger_Job',
+        task_id='Trigger_Job1',
         bash_command='/opt/airflow/data-integration/kitchen.sh -file:/opt/airflow/ktrs/helloworld/helloworld-job.kjb'
     )
 
     t2 = BashOperator(
+        task_id='Trigger_Job2',
+        bash_command='/opt/airflow/data-integration/kitchen.sh -file:/opt/airflow/ktrs/helloworld/helloworld-job.kjb'
+    )
+
+    t3 = BashOperator(
+        task_id='Trigger_Job3',
+        bash_command='/opt/airflow/data-integration/kitchen.sh -file:/opt/airflow/ktrs/helloworld/helloworld-job.kjb'
+    )
+
+    t4 = BashOperator(
         task_id='Trigger_Transformation',
         bash_command='/opt/airflow/data-integration/pan.sh -file:/opt/airflow/ktrs/helloworld/helloworld-trans.ktr'
     )
@@ -41,4 +51,4 @@ with DAG(
         task_id='Stop',
     )
 
-    start >> [t1, t2] >> stop
+    start >> [t1, t2, t3, t4] >> stop

@@ -28,12 +28,12 @@ with DAG(
 
     t2 = BashOperator(
         task_id='Task_1',
-        bash_command='/opt/data-integration/pan.sh -file:/opt/airflow/ktrs/process1/task1.ktr'
+        bash_command='/opt/aiflow/data-integration/pan.sh -file:/opt/airflow/ktrs/process1/task1.ktr'
     )
 
     t3 = BashOperator(
         task_id='Task_2',
-        bash_command='/opt/data-integration/pan.sh -file:/opt/airflow/ktrs/process1/task2.ktr'
+        bash_command='/opt/airflow/data-integration/pan.sh -file:/opt/airflow/ktrs/process1/task2.ktr'
     )
 
     t4 = DummyOperator(
