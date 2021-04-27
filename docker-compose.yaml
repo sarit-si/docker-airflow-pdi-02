@@ -1,12 +1,13 @@
 version: '3'
 
-x-airflow-pdi-common:
-  &airflow-pdi-common
-  build: ./setup-airflow-pdi
-  image: airflow-pdi
+x-airflow-common:
+  &airflow-common
+  image: apache/airflow:2.0.1
   environment:
-    &airflow-pdi-common-env
-    HOST_ENV: ${HOST_ENV}
+    &airflow-common-env
+    HOST_ENV: ${HOST_ENV:-localhost}
+    AIRFLOW_UID: ${AIRFLOW_UID}
+    AIRFLOW_GID: ${AIRFLOW_GID}
     AIRFLOW__CORE__EXECUTOR: CeleryExecutor
     AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-database/airflow
     AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@airflow-database/airflow
@@ -14,24 +15,34 @@ x-airflow-pdi-common:
     AIRFLOW__CORE__FERNET_KEY: ''
     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
     AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
-    PENTAHO_DI_JAVA_OPTIONS: ${PENTAHO_DI_JAVA_OPTIONS}
   volumes:
-    # Airflow
-    - ./source-code/dags:/opt/airflow/dags
-    - ./setup-airflow-pdi/plugins:/opt/airflow/plugins
-    - ./setup-airflow-pdi/logs/airflow:/opt/airflow/logs
-    - ./setup-airflow-pdi/airflow.cfg:/opt/airflow/airflow.cfg
-    # PDI
-    - ./source-code/ktrs:/opt/airflow/ktrs
-    - ./setup-airflow-pdi/logs/pdi:/opt/data-integration/logs
-    - ./setup-airflow-pdi/kettle-properties/${HOST_ENV:-localhost}-kettle.properties:/opt/data-integration/.kettle/kettle.properties
-    - ./setup-airflow-pdi/simple-jndi:/opt/data-integration/simple-jndi
-  user: "${AIRFLOW_UID}:${AIRFLOW_GID}"
-  depends_on:
-    airflow-broker:
-      condition: service_healthy
-    airflow-database:
-      condition: service_healthy
+    # Airflow mounts
+    - type: bind
+      source: ./source-code/dags
+      target: /opt/airflow/dags
+    - type: bind
+      source: ./setup-airflow-pdi/plugins
+      target: /opt/airflow/plugins
+    - type: bind
+      source: ./setup-airflow-pdi/logs/airflow
+      target: /opt/airflow/logs
+    - type: bind
+      source: ./setup-airflow-pdi/airflow.cfg
+      target: /opt/airflow/airflow.cfg
+    # Pdi mounts
+    - type: bind
+      source: ./source-code/ktrs
+      target: /opt/airflow/ktrs
+    - type: bind
+      source: ./setup-airflow-pdi/logs/pdi
+      target: /opt/airflow/data-integration/logs
+    - type: bind
+      source: ./setup-airflow-pdi/kettle-properties/${HOST_ENV:-localhost}-kettle.properties
+      target: /opt/airflow/data-integration/.kettle/kettle.properties
+    - type: bind
+      source: ./setup-airflow-pdi/simple-jndi
+      target: /opt/airflow/data-integration/simple-jndi
+
 
 services:
 # Airflow-DB
@@ -65,9 +76,11 @@ services:
 
 # Airflow-webserver
   airflow-webserver:
-    <<: *airflow-pdi-common
+    <<: *airflow-common
     container_name: airflow-webserver
-    command: webserver
+    depends_on:
+      airflow-database:
+        condition: service_healthy
     ports:
       - ${AIRFLOW_HOST_PORT:-8080}:8080
     healthcheck:
@@ -75,33 +88,48 @@ services:
       interval: 10s
       timeout: 10s
       retries: 5
+    command: webserver
     restart: always
 
 # Airflow-scheduler
   airflow-scheduler:
-    <<: *airflow-pdi-common
+    <<: *airflow-common
     container_name: airflow-scheduler
+    depends_on:
+      airflow-broker:
+        condition: service_healthy
+      airflow-database:
+        condition: service_healthy
     command: scheduler
-    restart: always
-
-# Airflow-worker
-  airflow-worker:
-    <<: *airflow-pdi-common
-    command: celery worker
     restart: always
 
 # Airflow-DB-initialize
   airflow-init:
-    <<: *airflow-pdi-common
+    <<: *airflow-common
     container_name: airflow-init
-    command: version
     environment:
-      <<: *airflow-pdi-common-env
+      <<: *airflow-common-env
       _AIRFLOW_DB_UPGRADE: 'true'
       _AIRFLOW_WWW_USER_CREATE: 'true'
       _AIRFLOW_WWW_USER_USERNAME: ${AIRFLOW_ADMIN_USER:-airflow}
       _AIRFLOW_WWW_USER_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD:-airflow}
       _AIRFLOW_WWW_USER_EMAIL: ${AIRFLOW_ADMIN_EMAIL:-admin@admin.com}
+    depends_on:
+      airflow-database:
+        condition: service_healthy
+    command: version
+
+# Airflow-worker
+  airflow-worker:
+    <<: *airflow-common
+    build:
+      context: ./setup-airflow-pdi
+    image: airflow-pdi
+    environment:
+      <<: *airflow-common-env
+      PENTAHO_DI_JAVA_OPTIONS: ${PENTAHO_DI_JAVA_OPTIONS}
+    command: celery worker
+    restart: always
 
 volumes:
   postgres-db-volume:
